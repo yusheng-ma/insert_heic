@@ -7,11 +7,13 @@ function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('🖼️ HEIC Converter')
     .addItem('Convert HEIC to JPEG', 'convertHeicToJpeg')
+    .addItem('Batch Convert All', 'batchConvertAllHeic')
     .addToUi();
 }
 
 function convertHeicToJpeg() {
   const ui = SpreadsheetApp.getUi();
+  const sheet = SpreadsheetApp.getActiveSheet();
   
   // Step 1: Prompt user for folder link
   const folderResponse = ui.prompt(
@@ -69,14 +71,45 @@ function convertHeicToJpeg() {
     const result = convertSingleHeicToJpeg(file, sourceFolder);
     
     if (result.success) {
-      ui.alert(
-        'Conversion Successful! ✅',
-        `File converted:\n\n` +
-        `Original: ${result.originalName}\n` +
-        `New: ${result.newName}\n` +
-        `Location: ${sourceFolder.getName()}`,
-        ui.ButtonSet.OK
-      );
+      // Insert the converted image into cell B2 using IMAGE formula
+      try {
+        const newFile = DriveApp.getFileById(result.newFileId);
+        
+        // Make the file accessible (anyone with link can view)
+        newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        
+        // Get the file URL for IMAGE function
+        const fileId = result.newFileId;
+        const imageUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+        
+        // Clear cell B2 and insert image using IMAGE formula
+        const cellB2 = sheet.getRange('B2');
+        cellB2.clear(); // Clear any existing content
+        
+        // Set row height for better display (optional)
+        sheet.setRowHeight(2, 300);
+        
+        // Set column width for better display (optional)
+        sheet.setColumnWidth(2, 300);
+        
+        // Insert image with IMAGE formula - this embeds the image IN the cell
+        // Syntax: =IMAGE(url, [mode])
+        // mode 1 = fit to cell, 2 = stretch to fit, 3 = original size, 4 = custom size
+        cellB2.setFormula(`=IMAGE("${imageUrl}", 1)`);
+        
+        ui.alert(
+          'Conversion Successful! ✅',
+          `File converted and embedded into cell B2:\n\n` +
+          `Original: ${result.originalName}\n` +
+          `New: ${result.newName}\n` +
+          `Location: ${sourceFolder.getName()}\n\n` +
+          `Image is now embedded in the cell!`,
+          ui.ButtonSet.OK
+        );
+      } catch (e) {
+        ui.alert('Warning', `File converted successfully but failed to embed into B2: ${e.toString()}`, ui.ButtonSet.OK);
+        console.error('Error embedding image:', e);
+      }
     } else {
       ui.alert('Conversion Failed', `Error: ${result.error}`, ui.ButtonSet.OK);
     }
